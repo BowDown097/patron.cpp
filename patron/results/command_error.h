@@ -3,23 +3,23 @@
 
 namespace patron
 {
-enum class command_error
-{
-    // search
-    unknown_command = 1,
-    // parse
-    parse_failed,
-    bad_arg_count,
-    // type reader
-    object_not_found,
-    multiple_matches,
-    // preconditions
-    unmet_precondition,
-    // execute
-    exception,
-    // runtime
-    unsuccessful
-};
+    enum class command_error
+    {
+        // search
+        unknown_command = 1,
+        // parse
+        parse_failed,
+        bad_arg_count,
+        // type reader
+        object_not_found,
+        multiple_matches,
+        // preconditions
+        unmet_precondition,
+        // execute
+        exception,
+        // runtime
+        unsuccessful
+    };
 }
 
 inline std::ostream& operator<<(std::ostream& os, const patron::command_error ce)

@@ -3,13 +3,13 @@
 
 namespace patron
 {
-bool command_info::matches(std::string_view str, bool case_sensitive) const
-{
-    if (utility::sequals(str, name(), case_sensitive))
-        return true;
-    for (std::string_view alias : aliases())
-        if (utility::sequals(str, alias, case_sensitive))
+    bool command_info::matches(std::string_view str, bool case_sensitive) const
+    {
+        if (utility::sequals(str, name(), case_sensitive))
             return true;
-    return false;
-}
+        for (std::string_view alias : aliases())
+            if (utility::sequals(str, alias, case_sensitive))
+                return true;
+        return false;
+    }
 }
