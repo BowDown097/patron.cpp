@@ -1,12 +1,17 @@
 #pragma once
 #include "annotations.h"
+#include "patron/results/command_result.h"
+#include "patron/utils/concepts.h"
 
 namespace patron
 {
-struct module_base;
+class module_base;
 
 class command_info
 {
+    template<typename C, typename E, template<typename> typename T>
+        requires (utility::specialization_of<T<void>, detail::no_task> ||
+                  utility::is_awaitable<T<command_result>>)
     friend class module_service;
 
     struct command_data
@@ -37,6 +42,8 @@ class command_info
 public:
     command_info(const command_data& data, const module_base* module)
         : m_data(data), m_module(module) {}
+
+    bool matches(std::string_view str, bool case_sensitive) const;
 
     std::string_view name() const { return m_data.m_name; }
     std::string_view summary() const { return m_data.m_summary; }
