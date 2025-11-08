@@ -102,15 +102,18 @@ namespace patron
             m_modules.emplace(create_module<M>(), std::forward<decltype(extra_data)>(extra_data));
         }
 
-        template<typename T>
-        type_reader<T>* get_type_reader() const
+        template<typename T, typename _ContextType = ContextType, typename _EventType = EventType>
+        type_reader<T, _ContextType, _EventType>* get_type_reader() const
         {
             if (auto it = m_type_readers.find(typeid(T)); it != m_type_readers.end())
-                return static_cast<type_reader<T>*>(it->second.get());
+                return static_cast<type_reader<T, _ContextType, _EventType>*>(it->second.get());
             return nullptr;
         }
 
         template<utility::specialization_of<type_reader> T>
+            requires
+        (std::is_void_v<typename T::context_type> || std::same_as<typename T::context_type, ContextType>) &&
+        (std::is_void_v<typename T::event_type> || std::same_as<typename T::event_type, EventType>)
         void register_type_reader()
         {
             m_type_readers[typeid(typename T::value_type)] = std::make_unique<T>();

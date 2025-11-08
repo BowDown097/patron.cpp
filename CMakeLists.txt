@@ -24,6 +24,7 @@ target_sources(patron
             patron/results/command_error.h
             patron/results/command_result.h
             patron/results/result.h
+            patron/results/type_reader_result.h
             patron/services/module_service.h
             patron/utils/concepts.h
             patron/utils/reflection.h

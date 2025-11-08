@@ -13,12 +13,8 @@ namespace patron
     namespace utility
     {
         // general
-        template<typename T, template<typename...> typename Primary>
-        struct is_specialization_of : std::false_type {};
-        template<template<typename...> typename Primary, typename... Args>
-        struct is_specialization_of<Primary<Args...>, Primary> : std::true_type {};
-        template<typename T, template<typename...> typename Primary>
-        concept specialization_of = is_specialization_of<T, Primary>::value;
+        template<typename T, template<typename...> typename Base>
+        concept specialization_of = requires(T& t) { []<typename... X>(Base<X...>&){}(t); };
 
         template<typename T, typename... Ts>
         concept any_of = (std::same_as<T, Ts> || ...);
