@@ -102,8 +102,34 @@ namespace patron
             m_modules.emplace(create_module<M>(), std::forward<decltype(extra_data)>(extra_data));
         }
 
+        template<std::meta::info NS> requires (std::meta::is_namespace(NS))
+        void register_namespace()
+        {
+            constexpr std::meta::access_context ctx = std::meta::access_context::current();
+            template for (constexpr std::meta::info member : define_static_array(std::meta::members_of(NS, ctx)))
+            {
+                if constexpr (std::meta::is_complete_type(member))
+                {
+                    using member_type = [:member:];
+                    if constexpr (std::derived_from<member_type, module_base>)
+                        register_module<member_type>();
+                    else if constexpr (utility::specialization_of<member_type, type_reader>)
+                        register_type_reader<member_type>();
+                }
+            }
+        }
+
+        template<utility::specialization_of<type_reader> T>
+        T* get_type_reader() const
+        {
+            for (const auto& [_, reader] : m_type_readers)
+                if (T* casted_reader = dynamic_cast<T*>(reader.get()))
+                    return casted_reader;
+            return nullptr;
+        }
+
         template<typename T, typename _ContextType = ContextType, typename _EventType = EventType>
-        type_reader<T, _ContextType, _EventType>* get_type_reader() const
+        type_reader<T, _ContextType, _EventType>* type_reader_for() const
         {
             if (auto it = m_type_readers.find(typeid(T)); it != m_type_readers.end())
                 return static_cast<type_reader<T, _ContextType, _EventType>*>(it->second.get());
