@@ -14,6 +14,8 @@ namespace patron
         bool ignore_extra_args = true;
     };
 
+    struct remainder {};
+
     struct remarks
     {
         utility::static_string_view text;
