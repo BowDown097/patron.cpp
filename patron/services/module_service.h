@@ -1,5 +1,5 @@
 #pragma once
-#include "patron/commands/type_reader.h"
+#include "patron/commands/command_execution.h"
 #include "patron/modules/module_base.h"
 #include <any>
 #include <memory>
@@ -32,7 +32,6 @@ namespace patron
                   utility::is_awaitable<CoroutineTaskType<command_result>>)
     class module_service
     {
-    public:
         using command_result_t = std::conditional_t<
             utility::is_awaitable<CoroutineTaskType<command_result>>,
             CoroutineTaskType<command_result>,
@@ -47,6 +46,9 @@ namespace patron
             std::is_void_v<EventType>,
             std::monostate,
             std::add_pointer_t<std::add_const_t<EventType>>>;
+    public:
+        using context_type = ContextType;
+        using event_type = EventType;
 
         explicit module_service(std::shared_ptr<ContextType> context, module_service_config config = {})
             requires (!std::is_void_v<ContextType>)
@@ -119,20 +121,13 @@ namespace patron
             }
         }
 
-        template<utility::specialization_of<type_reader> T>
-        T* get_type_reader() const
-        {
-            for (const auto& [_, reader] : m_type_readers)
-                if (T* casted_reader = dynamic_cast<T*>(reader.get()))
-                    return casted_reader;
-            return nullptr;
-        }
-
         template<typename T, typename _ContextType = ContextType, typename _EventType = EventType>
-        type_reader<T, _ContextType, _EventType>* type_reader_for() const
+        std::unique_ptr<type_reader<T, _ContextType, _EventType>> create_type_reader() const
         {
-            if (auto it = m_type_readers.find(typeid(T)); it != m_type_readers.end())
-                return static_cast<type_reader<T, _ContextType, _EventType>*>(it->second.get());
+            using TypeReader = type_reader<T, _ContextType, _EventType>;
+            if (auto it = m_type_reader_factories.find(typeid(T)); it != m_type_reader_factories.end())
+                if (it->second.first == typeid(TypeReader))
+                    return std::unique_ptr<TypeReader>(static_cast<TypeReader*>(it->second.second()));
             return nullptr;
         }
 
@@ -142,13 +137,16 @@ namespace patron
         (std::is_void_v<typename T::event_type> || std::same_as<typename T::event_type, EventType>)
         void register_type_reader()
         {
-            m_type_readers[typeid(typename T::value_type)] = std::make_unique<T>();
+            m_type_reader_factories.try_emplace(
+                typeid(typename T::value_type),
+                typeid(T),
+                [] -> void* { return new T; });
         }
     private:
         module_service_config m_config;
         NO_UNIQUE_ADDRESS context_member_t m_context;
         std::unordered_map<std::unique_ptr<module_base>, std::any> m_modules;
-        std::unordered_map<std::type_index, std::unique_ptr<type_reader_base>> m_type_readers;
+        std::unordered_map<std::type_index, std::pair<std::type_index, std::function<void*()>>> m_type_reader_factories;
 
         static consteval std::string build_usage(std::meta::info command)
         {
@@ -203,8 +201,12 @@ namespace patron
                             utility::find_annotation(member, ^^remarks),
                             utility::find_annotation(member, ^^alias),
                             build_usage(member));
+                        command_function cmd_fn = command_execution::create_command_function
+                            <member, utility::static_span<const std::meta::info>(std::meta::parameters_of(member)),
+                             M, std::remove_pointer_t<decltype(this)>>
+                            (cmd_data.m_name, cmd_data.m_ignore_extra_args, cmd_data.m_remainder);
 
-                        module->m_commands.emplace_back(cmd_data, module.get());
+                        module->m_commands.emplace_back(cmd_data, module.get(), std::move(cmd_fn));
                     }
                 }
             }

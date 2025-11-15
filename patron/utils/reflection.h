@@ -38,6 +38,7 @@ namespace patron
 
             constexpr T* begin() const noexcept { return data; }
             constexpr T* end() const noexcept { return data + size; }
+            constexpr T& operator[](std::size_t idx) const noexcept { return data[idx]; }
 
             template<std::size_t N>
             constexpr operator std::span<T, N>() const

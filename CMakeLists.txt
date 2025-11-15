@@ -12,10 +12,12 @@ target_sources(patron
         patron/commands/command_info.cpp
         patron/commands/exceptions.cpp
         patron/modules/module_base.cpp
+        patron/utils/lexical_cast.cpp
         patron/utils/strings.cpp
     PUBLIC
         FILE_SET HEADERS FILES
             patron/commands/annotations.h
+            patron/commands/command_execution.h
             patron/commands/command_function.h
             patron/commands/command_info.h
             patron/commands/exceptions.h
@@ -27,5 +29,7 @@ target_sources(patron
             patron/results/type_reader_result.h
             patron/services/module_service.h
             patron/utils/concepts.h
+            patron/utils/join.h
+            patron/utils/lexical_cast.h
             patron/utils/reflection.h
             patron/utils/strings.h)

@@ -15,17 +15,14 @@ namespace patron
         constexpr type_reader_value(U&& value, float weight) noexcept(std::is_nothrow_constructible_v<T, U>)
             : m_value(std::forward<U>(value)), m_weight(weight) {}
 
-        constexpr const T* operator->() const noexcept { return std::addressof(m_value); }
-        constexpr T* operator->() noexcept { return std::addressof(m_value); }
-        constexpr const T& operator*() const& noexcept { return m_value; }
-        constexpr T& operator*() & noexcept { return m_value; }
-        constexpr const T&& operator*() const&& noexcept { return std::move(m_value); }
-        constexpr T&& operator*() && noexcept { return std::move(m_value); }
+        template<typename Self>
+        constexpr auto operator->(this Self&& self) noexcept { return std::addressof(self.m_value); }
 
-        constexpr const T& value() const& noexcept { return m_value; }
-        constexpr T& value() & noexcept { return m_value; }
-        constexpr const T&& value() const&& noexcept { return std::move(m_value); }
-        constexpr T&& value() && noexcept { return std::move(m_value); }
+        template<typename Self>
+        constexpr auto&& operator*(this Self&& self) noexcept { return std::forward<Self>(self).m_value; }
+
+        template<typename Self>
+        constexpr auto&& value(this Self&& self) noexcept { return std::forward<Self>(self).m_value; }
 
         constexpr float weight() const { return m_weight; }
     private:

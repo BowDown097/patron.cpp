@@ -1,7 +1,6 @@
 #pragma once
 #include "annotations.h"
-#include "patron/results/command_result.h"
-#include "patron/utils/concepts.h"
+#include "command_function.h"
 
 namespace patron
 {
@@ -18,6 +17,7 @@ namespace patron
         {
             std::string_view m_name;
             bool m_ignore_extra_args;
+            bool m_remainder;
             std::string_view m_summary;
             std::string_view m_remarks;
             std::span<const char*> m_aliases;
@@ -37,11 +37,12 @@ namespace patron
                 command cmd = std::meta::extract<command>(command_info);
                 m_name = std::string_view(cmd.text);
                 m_ignore_extra_args = cmd.ignore_extra_args;
+                m_remainder = cmd.remainder;
             }
         };
     public:
-        command_info(const command_data& data, const module_base* module)
-            : m_data(data), m_module(module) {}
+        command_info(const command_data& data, const module_base* module, command_function&& function)
+            : m_data(data), m_function(std::move(function)), m_module(module) {}
 
         bool matches(std::string_view str, bool case_sensitive) const;
 
@@ -50,9 +51,12 @@ namespace patron
         std::string_view remarks() const { return m_data.m_remarks; }
         std::span<const char*> aliases() const { return m_data.m_aliases; }
         std::string_view usage() const { return m_data.m_usage; }
+
+        const command_function& function() const { return m_function; }
         const module_base* module() const { return m_module; }
     private:
         command_data m_data;
+        command_function m_function;
         const module_base* m_module;
     };
 }

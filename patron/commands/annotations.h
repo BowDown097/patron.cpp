@@ -11,10 +11,9 @@ namespace patron
     struct command
     {
         utility::static_string_view text;
+        bool remainder = false;
         bool ignore_extra_args = true;
     };
-
-    struct remainder {};
 
     struct remarks
     {
