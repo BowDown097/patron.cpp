@@ -2,9 +2,7 @@
 #include "patron/commands/command_execution.h"
 #include "patron/modules/module_base.h"
 #include <any>
-#include <memory>
 #include <typeindex>
-#include <unordered_map>
 
 // thank you MSVC
 #if __has_cpp_attribute(msvc::no_unique_address)
@@ -67,7 +65,7 @@ namespace patron
         std::vector<const module_base*> modules() const
         {
             std::vector<const module_base*> out;
-            for (const auto& [module, _] : m_modules)
+            for (const std::unique_ptr<module_base>& module : m_modules)
                 out.push_back(module.get());
             return out;
         }
@@ -76,7 +74,7 @@ namespace patron
         {
             std::vector<const command_info*> out;
 
-            for (const auto& [module, _] : m_modules)
+            for (const std::unique_ptr<module_base>& module : m_modules)
                 for (const command_info& cmd : module->commands())
                     if (cmd.matches(name, m_config.case_sensitive_lookup))
                         out.push_back(&cmd);
@@ -86,22 +84,22 @@ namespace patron
 
         const module_base* search_module(std::string_view name) const
         {
-            for (const auto& [module, _] : m_modules)
+            for (const std::unique_ptr<module_base>& module : m_modules)
                 if (module->matches(name, m_config.case_sensitive_lookup))
                     return module.get();
             return nullptr;
         }
 
-        template<std::derived_from<module_base> M>
-        void register_module()
+        template<typename T>
+        void register_extra_data(T&& data = {})
         {
-            m_modules.emplace(create_module<M>(), std::any{});
+            m_extra_data.emplace_back(std::forward<T>(data));
         }
 
         template<std::derived_from<module_base> M>
-        void register_module(auto&& extra_data)
+        void register_module()
         {
-            m_modules.emplace(create_module<M>(), std::forward<decltype(extra_data)>(extra_data));
+            m_modules.push_back(create_module<M>());
         }
 
         template<std::meta::info NS> requires (std::meta::is_namespace(NS))
@@ -125,9 +123,8 @@ namespace patron
         std::unique_ptr<type_reader<T, _ContextType, _EventType>> create_type_reader() const
         {
             using TypeReader = type_reader<T, _ContextType, _EventType>;
-            if (auto it = m_type_reader_factories.find(typeid(T)); it != m_type_reader_factories.end())
-                if (it->second.first == typeid(TypeReader))
-                    return std::unique_ptr<TypeReader>(static_cast<TypeReader*>(it->second.second()));
+            if (auto it = m_type_reader_factories.find(typeid(TypeReader)); it != m_type_reader_factories.end())
+                return std::unique_ptr<TypeReader>(static_cast<TypeReader*>(it->second()));
             return nullptr;
         }
 
@@ -137,16 +134,14 @@ namespace patron
         (std::is_void_v<typename T::event_type> || std::same_as<typename T::event_type, EventType>)
         void register_type_reader()
         {
-            m_type_reader_factories.try_emplace(
-                typeid(typename T::value_type),
-                typeid(T),
-                [] -> void* { return new T; });
+            m_type_reader_factories.try_emplace(typeid(T), [] -> void* { return new T; });
         }
     private:
         module_service_config m_config;
         NO_UNIQUE_ADDRESS context_member_t m_context;
-        std::unordered_map<std::unique_ptr<module_base>, std::any> m_modules;
-        std::unordered_map<std::type_index, std::pair<std::type_index, std::function<void*()>>> m_type_reader_factories;
+        std::vector<std::any> m_extra_data;
+        std::vector<std::unique_ptr<module_base>> m_modules;
+        std::unordered_map<std::type_index, std::function<void*()>> m_type_reader_factories;
 
         static consteval std::string build_usage(std::meta::info command)
         {

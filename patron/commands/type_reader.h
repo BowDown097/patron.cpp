@@ -86,7 +86,7 @@ namespace patron
         std::span<const type_reader_value<T>> results() const { return m_results; }
     protected:
         template<typename U = T> requires std::is_constructible_v<T, U>
-        void add_result(U&& value, float weight = 1.0f) noexcept(std::is_nothrow_constructible_v<T, U>)
+        void add_result(U&& value, float weight = 1.0f)
         {
             m_results.emplace_back(std::forward<U>(value), weight);
         }
