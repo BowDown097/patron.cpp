@@ -1,5 +1,8 @@
 #pragma once
 #include "patron/results/type_reader_result.h"
+#include <algorithm>
+#include <any>
+#include <meta>
 #include <span>
 #include <vector>
 
@@ -30,54 +33,20 @@ namespace patron
         float m_weight;
     };
 
-    struct type_reader_base
-    {
-        virtual ~type_reader_base() = default;
-    };
-
-    template<typename T, typename ContextType, typename EventType>
-    struct type_reader_read
-    {
-        virtual type_reader_result read(ContextType* context, const EventType* event, const std::string& input) = 0;
-    };
-
     template<typename T>
-    struct type_reader_read<T, void, void>
-    {
-        virtual type_reader_result read(const std::string& input) = 0;
-    };
-
-    template<typename T, typename ContextType>
-    struct type_reader_read<T, ContextType, void>
-    {
-        virtual type_reader_result read(ContextType* context, const std::string& input) = 0;
-    };
-
-    template<typename T, typename EventType>
-    struct type_reader_read<T, void, EventType>
-    {
-        virtual type_reader_result read(const EventType* event, const std::string& input) = 0;
-    };
-
-    template<typename T, typename ContextType = void, typename EventType = void>
-    class type_reader : public type_reader_base, public type_reader_read<T, ContextType, EventType>
+    class type_reader_base
     {
     public:
-        using context_type = ContextType;
-        using event_type = EventType;
         using value_type = T;
+
+        virtual ~type_reader_base() = default;
+        virtual type_reader_result read(const std::string& input) = 0;
 
         const T& top_result() const
         {
-            if (!has_result())
+            if (m_results.empty())
                 throw std::logic_error("Tried to get top result from type reader with no results");
-
-            const type_reader_value<T>* top_value{};
-            for (const type_reader_value<T>& value : m_results)
-                if (!top_value || top_value->weight() < value.weight())
-                    top_value = &value;
-
-            return top_value->value();
+            return std::ranges::max_element(m_results, {}, &type_reader_value<T>::weight)->value();
         }
 
         bool has_result() const { return !m_results.empty(); }
@@ -92,5 +61,30 @@ namespace patron
         }
     private:
         std::vector<type_reader_value<T>> m_results;
+    };
+
+    template<typename Derived, typename T>
+    struct type_reader : type_reader_base<T>
+    {
+        static type_reader<Derived, T>* create(std::span<const std::any> extra_data)
+        {
+            Derived* result = new Derived;
+
+            constexpr std::meta::access_context ctx = std::meta::access_context::unchecked();
+            template for (constexpr std::meta::info member : define_static_array(std::meta::nonstatic_data_members_of(^^Derived, ctx)))
+            {
+                using Member = [:std::meta::type_of(member):];
+                for (const std::any& data : extra_data)
+                {
+                    if (const Member* casted = std::any_cast<Member>(&data))
+                    {
+                        result->[:member:] = *casted;
+                        break;
+                    }
+                }
+            }
+
+            return result;
+        }
     };
 }

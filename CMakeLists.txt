@@ -28,6 +28,7 @@ target_sources(patron
             patron/results/result.h
             patron/results/type_reader_result.h
             patron/services/module_service.h
+            patron/services/module_service_base.h
             patron/utils/concepts.h
             patron/utils/join.h
             patron/utils/lexical_cast.h

@@ -8,9 +8,8 @@ namespace patron
 
     class command_info
     {
-        template<typename C, typename E, template<typename> typename T>
-            requires (utility::specialization_of<T<void>, detail::no_task> ||
-                      utility::is_awaitable<T<command_result>>)
+        template<template<typename> typename T>
+            requires (utility::specialization_of<T<void>, detail::no_task> || utility::is_awaitable<T<command_result>>)
         friend class module_service;
 
         struct command_data

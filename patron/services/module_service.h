@@ -1,66 +1,21 @@
 #pragma once
 #include "patron/commands/command_execution.h"
 #include "patron/modules/module_base.h"
-#include <any>
-#include <typeindex>
-
-// thank you MSVC
-#if __has_cpp_attribute(msvc::no_unique_address)
-#define NO_UNIQUE_ADDRESS [[msvc::no_unique_address]]
-#elif __has_cpp_attribute(no_unique_address)
-#define NO_UNIQUE_ADDRESS [[no_unique_address]]
-#else
-#define NO_UNIQUE_ADDRESS
-#endif
 
 namespace patron
 {
-    struct module_service_config
-    {
-        bool case_sensitive_lookup{};
-        char command_prefix = '!';
-        char separator_char = ' ';
-        bool throw_exceptions{};
-    };
-
-    template<typename ContextType = void,
-             typename EventType = void,
-             template<typename> typename CoroutineTaskType = detail::no_task>
+    template<template<typename> typename CoroutineTaskType = detail::no_task>
         requires (utility::specialization_of<CoroutineTaskType<void>, detail::no_task> ||
                   utility::is_awaitable<CoroutineTaskType<command_result>>)
-    class module_service
+    class module_service : public module_service_base
     {
         using command_result_t = std::conditional_t<
             utility::is_awaitable<CoroutineTaskType<command_result>>,
             CoroutineTaskType<command_result>,
             command_result>;
-
-        using context_member_t = std::conditional_t<
-            std::is_void_v<ContextType>,
-            std::monostate,
-            std::shared_ptr<ContextType>>;
-
-        using event_parameter_t = std::conditional_t<
-            std::is_void_v<EventType>,
-            std::monostate,
-            std::add_pointer_t<std::add_const_t<EventType>>>;
     public:
-        using context_type = ContextType;
-        using event_type = EventType;
-
-        explicit module_service(std::shared_ptr<ContextType> context, module_service_config config = {})
-            requires (!std::is_void_v<ContextType>)
-            : m_config(std::move(config)), m_context(std::move(context)) {}
-
         explicit module_service(module_service_config config = {})
-            requires std::is_void_v<ContextType>
-            : m_config(std::move(config)) {}
-
-        const module_service_config& config() const
-        { return m_config; }
-
-        ContextType* context() const requires (!std::is_void_v<ContextType>)
-        { return m_context.get(); }
+            : module_service_base(std::move(config)) {}
 
         std::vector<const module_base*> modules() const
         {
@@ -76,7 +31,7 @@ namespace patron
 
             for (const std::unique_ptr<module_base>& module : m_modules)
                 for (const command_info& cmd : module->commands())
-                    if (cmd.matches(name, m_config.case_sensitive_lookup))
+                    if (cmd.matches(name, config().case_sensitive_lookup))
                         out.push_back(&cmd);
 
             return out;
@@ -85,15 +40,9 @@ namespace patron
         const module_base* search_module(std::string_view name) const
         {
             for (const std::unique_ptr<module_base>& module : m_modules)
-                if (module->matches(name, m_config.case_sensitive_lookup))
+                if (module->matches(name, config().case_sensitive_lookup))
                     return module.get();
             return nullptr;
-        }
-
-        template<typename T>
-        void register_extra_data(T&& data = {})
-        {
-            m_extra_data.emplace_back(std::forward<T>(data));
         }
 
         template<std::derived_from<module_base> M>
@@ -118,30 +67,14 @@ namespace patron
                 }
             }
         }
-
-        template<typename T, typename _ContextType = ContextType, typename _EventType = EventType>
-        std::unique_ptr<type_reader<T, _ContextType, _EventType>> create_type_reader() const
-        {
-            using TypeReader = type_reader<T, _ContextType, _EventType>;
-            if (auto it = m_type_reader_factories.find(typeid(TypeReader)); it != m_type_reader_factories.end())
-                return std::unique_ptr<TypeReader>(static_cast<TypeReader*>(it->second()));
-            return nullptr;
-        }
-
-        template<utility::specialization_of<type_reader> T>
-            requires
-        (std::is_void_v<typename T::context_type> || std::same_as<typename T::context_type, ContextType>) &&
-        (std::is_void_v<typename T::event_type> || std::same_as<typename T::event_type, EventType>)
-        void register_type_reader()
-        {
-            m_type_reader_factories.try_emplace(typeid(T), [] -> void* { return new T; });
-        }
+    protected:
+        // TODO: provide implementation
+        CoroutineTaskType<command_result> run_command(std::string_view name, std::span<const std::string> args)
+            requires utility::is_awaitable<CoroutineTaskType<command_result>>;
+        command_result run_command(std::string_view name, std::span<const std::string> args)
+            requires (!utility::is_awaitable<CoroutineTaskType<command_result>>);
     private:
-        module_service_config m_config;
-        NO_UNIQUE_ADDRESS context_member_t m_context;
-        std::vector<std::any> m_extra_data;
         std::vector<std::unique_ptr<module_base>> m_modules;
-        std::unordered_map<std::type_index, std::function<void*()>> m_type_reader_factories;
 
         static consteval std::string build_usage(std::meta::info command)
         {
@@ -197,8 +130,7 @@ namespace patron
                             utility::find_annotation(member, ^^alias),
                             build_usage(member));
                         command_function cmd_fn = command_execution::create_command_function
-                            <member, utility::static_span<const std::meta::info>(std::meta::parameters_of(member)),
-                             M, std::remove_pointer_t<decltype(this)>>
+                            <member, utility::static_span<const std::meta::info>(std::meta::parameters_of(member)), M>
                             (cmd_data.m_name, cmd_data.m_ignore_extra_args, cmd_data.m_remainder);
 
                         module->m_commands.emplace_back(cmd_data, module.get(), std::move(cmd_fn));
@@ -208,9 +140,5 @@ namespace patron
 
             return module;
         }
-
-        // TODO: provide implementation
-        command_result_t run_command(
-            std::string_view name, std::vector<std::string>&& args, event_parameter_t event = {});
     };
 }
